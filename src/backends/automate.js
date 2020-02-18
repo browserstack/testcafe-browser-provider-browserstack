@@ -6,7 +6,7 @@ import requestApiBase from '../utils/request-api';
 import createBrowserstackStatus from '../utils/create-browserstack-status';
 import getAPIPollingInterval from '../utils/get-api-polling-interval';
 import * as ERROR_MESSAGES from '../templates/error-messages';
-
+import parsePayload from './parsePayload';
 
 const API_POLLING_INTERVAL = getAPIPollingInterval();
 
@@ -41,6 +41,11 @@ const BROWSERSTACK_API_PATHS = {
 
     getUrl: id => ({
         url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/url`
+    }),
+
+    executeScript: id => ({
+        url:    `http://hub-cloud.browserstack.com/wd/hub/session/${id}/execute`,
+        method: 'POST'
     }),
 
     deleteSession: id => ({
@@ -92,6 +97,25 @@ export default class AutomateBackend extends BaseBackend {
         super(...args);
 
         this.sessions = {};
+    }
+
+    sessionId (id) {
+        return this.sessions[id].sessionId;
+    }
+
+    async markLog (id, data) {
+        const sessionId = this.sessions[id].sessionId;
+
+        const payload = parsePayload(data);
+
+        payload.action = 'annotate';
+
+        payload.currentTime = Date.now();
+
+        await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), { body: {
+            script: `browserstack_executor: ${JSON.stringify(payload)}`
+        } });
+
     }
 
     static _ensureSessionId (sessionInfo) {
