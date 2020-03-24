@@ -103,6 +103,31 @@ export default class AutomateBackend extends BaseBackend {
         return this.sessions[id].sessionId;
     }
 
+    async adjustName(name, id) {
+        this.sessions[id].testName = name;
+        // console.log(this.sessions[id]);
+
+        const sessionId = this.sessions[id].sessionId;
+        const payload = {
+            action: 'setSessionName',
+            arguments: {
+                name
+            }
+        };
+
+        // console.log("Sending request............");
+
+        try {
+            await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
+                body: {
+                    script: `browserstack_executor: ${JSON.stringify(payload)}`
+                }
+            });
+        } catch(err) {
+            console.log(err);
+        }
+    }
+
     async markLog (id, data) {
         const sessionId = this.sessions[id].sessionId;
 
@@ -199,6 +224,7 @@ export default class AutomateBackend extends BaseBackend {
         if (session.sessionId && session.sessionId !== '')
             await requestApi(BROWSERSTACK_API_PATHS.deleteSession(session.sessionId));
     }
+
 
     async takeScreenshot (id, screenshotPath) {
         return new Promise(async (resolve, reject) => {
