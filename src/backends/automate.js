@@ -1,261 +1,301 @@
-import { inspect } from 'util';
-import Promise from 'pinkie';
-import jimp from 'jimp';
-import BaseBackend from './base';
-import requestApiBase from '../utils/request-api';
-import createBrowserstackStatus from '../utils/create-browserstack-status';
-import getAPIPollingInterval from '../utils/get-api-polling-interval';
-import * as ERROR_MESSAGES from '../templates/error-messages';
-import parsePayload from './parsePayload';
+import { inspect } from "util";
+import Promise from "pinkie";
+import jimp from "jimp";
+import BaseBackend from "./base";
+import requestApiBase from "../utils/request-api";
+import createBrowserstackStatus from "../utils/create-browserstack-status";
+import getAPIPollingInterval from "../utils/get-api-polling-interval";
+import * as ERROR_MESSAGES from "../templates/error-messages";
+import parsePayload from "./parsePayload";
 
 const API_POLLING_INTERVAL = getAPIPollingInterval();
 
 const BROWSERSTACK_API_PATHS = {
-    browserList: {
-        url: 'https://api.browserstack.com/automate/browsers.json'
-    },
+  browserList: {
+    url: "https://api.browserstack.com/automate/browsers.json"
+  },
 
-    newSession: {
-        url:    'http://hub-cloud.browserstack.com/wd/hub/session',
-        method: 'POST'
-    },
+  newSession: {
+    url: "http://hub-cloud.browserstack.com/wd/hub/session",
+    method: "POST"
+  },
 
-    openUrl: id => ({
-        url:    `http://hub-cloud.browserstack.com/wd/hub/session/${id}/url`,
-        method: 'POST'
-    }),
+  openUrl: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/url`,
+    method: "POST"
+  }),
 
-    getWindowSize: id => ({
-        url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`
-    }),
+  getWindowSize: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`
+  }),
 
-    setWindowSize: id => ({
-        url:    `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`,
-        method: 'POST'
-    }),
+  setWindowSize: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`,
+    method: "POST"
+  }),
 
-    maximizeWindow: id => ({
-        url:    `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/maximize`,
-        method: 'POST'
-    }),
+  maximizeWindow: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/maximize`,
+    method: "POST"
+  }),
 
-    getUrl: id => ({
-        url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/url`
-    }),
+  getUrl: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/url`
+  }),
 
-    executeScript: id => ({
-        url:    `http://hub-cloud.browserstack.com/wd/hub/session/${id}/execute`,
-        method: 'POST'
-    }),
+  executeScript: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/execute`,
+    method: "POST"
+  }),
 
-    deleteSession: id => ({
-        url:    `http://hub-cloud.browserstack.com/wd/hub/session/${id}`,
-        method: 'DELETE'
-    }),
+  deleteSession: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}`,
+    method: "DELETE"
+  }),
 
-    screenshot: id => ({
-        url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/screenshot`
-    }),
+  screenshot: id => ({
+    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/screenshot`
+  }),
 
-    getStatus: id => ({
-        url: `https://api.browserstack.com/automate/sessions/${id}.json`
-    }),
+  getStatus: id => ({
+    url: `https://api.browserstack.com/automate/sessions/${id}.json`
+  }),
 
-    setStatus: id => ({
-        url:    `https://api.browserstack.com/automate/sessions/${id}.json`,
-        method: 'PUT'
-    })
+  setStatus: id => ({
+    url: `https://api.browserstack.com/automate/sessions/${id}.json`,
+    method: "PUT"
+  })
 };
 
+function requestApi(path, params) {
+  return requestApiBase(path, params).then(response => {
+    if (response.status) {
+      throw new Error(
+        ERROR_MESSAGES.REMOTE_API_REQUEST_FAILED({
+          status: response.status,
+          apiResponse:
+          (response.value && response.value.message) ||
+          inspect(response)
+        })
+      );
+    }
 
-function requestApi (path, params) {
-    return requestApiBase(path, params)
-        .then(response => {
-            if (response.status) {
-                throw new Error(ERROR_MESSAGES.REMOTE_API_REQUEST_FAILED({
-                    status:      response.status,
-                    apiResponse: response.value && response.value.message || inspect(response)
-                }));
-            }
-
-            return response;
-        });
+    return response;
+  });
 }
 
-function getCorrectedSize (currentClientAreaSize, currentWindowSize, requestedSize) {
-    var horizontalChrome = currentWindowSize.width - currentClientAreaSize.width;
-    var verticalChrome   = currentWindowSize.height - currentClientAreaSize.height;
+function getCorrectedSize(
+  currentClientAreaSize,
+  currentWindowSize,
+  requestedSize
+) {
+  var horizontalChrome =
+    currentWindowSize.width - currentClientAreaSize.width;
+  var verticalChrome =
+    currentWindowSize.height - currentClientAreaSize.height;
 
-    return {
-        width:  requestedSize.width + horizontalChrome,
-        height: requestedSize.height + verticalChrome
-    };
+  return {
+    width: requestedSize.width + horizontalChrome,
+    height: requestedSize.height + verticalChrome
+  };
 }
 
 export default class AutomateBackend extends BaseBackend {
-    constructor (...args) {
-        super(...args);
+  constructor(...args) {
+    super(...args);
 
-        this.sessions = {};
-    }
+    this.sessions = {};
 
-    sessionId (id) {
-        return this.sessions[id].sessionId;
-    }
+    this.internalSessions = {};
+  }
 
-    async adjustName(name, id) {
-        this.sessions[id].testName = name;
-        // console.log(this.sessions[id]);
+  fetchSessionID(id) {
+    return this.internalSessions[id];
+  }
 
-        const sessionId = this.sessions[id].sessionId;
-        const payload = {
-            action: 'setSessionName',
-            arguments: {
-                name
-            }
-        };
+  async adjustName(name, id) {
+    const sessionId = this.fetchSessionID(id);
 
-        // console.log("Sending request............");
-
-        try {
-            await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
-                body: {
-                    script: `browserstack_executor: ${JSON.stringify(payload)}`
-                }
-            });
-        } catch(err) {
-            console.log(err);
+    try {
+      await requestApi(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
+        body: {
+          name,
         }
+      });
+    } catch (err) {
+      // Can be enabled through flag to see the errors while
+      // this functionality.
+      // console.log(err);
     }
+  }
 
-    async markLog (id, data) {
-        const sessionId = this.sessions[id].sessionId;
+  async markLog(id, data) {
+    const sessionId = this.fetchSessionID(id);
 
-        const payload = parsePayload(data);
+    const payload = parsePayload(data);
+    payload.action = "annotate";
+    payload.currentTime = Date.now();
 
-        payload.action = 'annotate';
+    await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
+      body: {
+        script: `browserstack_executor: ${JSON.stringify(payload)}`
+      }
+    });
+  }
 
-        payload.currentTime = Date.now();
+  static _ensureSessionId(sessionInfo) {
+    const sessionData = sessionInfo.value || {};
+    const sessionCapabilities = sessionData.capabilities || {};
 
-        await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), { body: {
-            script: `browserstack_executor: ${JSON.stringify(payload)}`
-        } });
+    sessionInfo.sessionId =
+      sessionInfo.sessionId ||
+      sessionData.sessionId ||
+      sessionData["webdriver.remote.sessionid"] ||
+      sessionCapabilities["webdriver.remote.sessionid"];
 
+    if (!sessionInfo.sessionId) {
+      throw new Error(
+        ERROR_MESSAGES.SESSION_ID_NOT_FOUND({
+          sessionInfoDump: inspect(sessionInfo)
+        })
+      );
     }
+  }
 
-    static _ensureSessionId (sessionInfo) {
-        const sessionData         = sessionInfo.value || {};
-        const sessionCapabilities = sessionData.capabilities || {};
+  async _requestSessionUrl(id) {
+    var sessionInfo = await requestApiBase(
+      BROWSERSTACK_API_PATHS.getStatus(this.sessions[id].sessionId)
+    );
 
-        sessionInfo.sessionId = sessionInfo.sessionId ||
-                                sessionData.sessionId ||
-                                sessionData['webdriver.remote.sessionid'] ||
-                                sessionCapabilities['webdriver.remote.sessionid'];
+    return sessionInfo["automation_session"]["browser_url"];
+  }
 
-        if (!sessionInfo.sessionId) {
-            throw new Error(ERROR_MESSAGES.SESSION_ID_NOT_FOUND({
-                sessionInfoDump: inspect(sessionInfo)
-            }));
-        }
-    }
+  async _requestCurrentWindowSize(id) {
+    var currentWindowSizeData = await requestApi(
+      BROWSERSTACK_API_PATHS.getWindowSize(this.sessions[id].sessionId)
+    );
 
-    async _requestSessionUrl (id) {
-        var sessionInfo = await requestApiBase(BROWSERSTACK_API_PATHS.getStatus(this.sessions[id].sessionId));
+    return {
+      width: currentWindowSizeData.value.width,
+      height: currentWindowSizeData.value.height
+    };
+  }
 
-        return sessionInfo['automation_session']['browser_url'];
-    }
+  async getBrowsersList() {
+    var platformsInfo = await requestApiBase(
+      BROWSERSTACK_API_PATHS.browserList
+    );
 
-    async _requestCurrentWindowSize (id) {
-        var currentWindowSizeData = await requestApi(BROWSERSTACK_API_PATHS.getWindowSize(this.sessions[id].sessionId));
+    return platformsInfo.reverse();
+  }
 
-        return {
-            width:  currentWindowSizeData.value.width,
-            height: currentWindowSizeData.value.height
-        };
-    }
+  getSessionUrl(id) {
+    return this.sessions[id] ? this.sessions[id].sessionUrl : "";
+  }
 
-    async getBrowsersList () {
-        var platformsInfo = await requestApiBase(BROWSERSTACK_API_PATHS.browserList);
+  async openBrowser(id, pageUrl, capabilities) {
+    var { localIdentifier, local, ...restCapabilities } = capabilities;
 
-        return platformsInfo.reverse();
-    }
+    capabilities = {
+      "browserstack.localIdentifier": localIdentifier,
+      "browserstack.local": local,
+      ...restCapabilities
+    };
 
-    getSessionUrl (id) {
-        return this.sessions[id] ? this.sessions[id].sessionUrl : '';
-    }
+    this.sessions[id] = await requestApi(
+      BROWSERSTACK_API_PATHS.newSession,
+      {
+        body: { desiredCapabilities: capabilities },
 
-    async openBrowser (id, pageUrl, capabilities) {
-        var { localIdentifier, local, ...restCapabilities } = capabilities;
+        executeImmediately: true
+      }
+    );
 
-        capabilities = {
-            'browserstack.localIdentifier': localIdentifier,
-            'browserstack.local':           local,
-            ...restCapabilities
-        };
+    AutomateBackend._ensureSessionId(this.sessions[id]);
 
-        this.sessions[id] = await requestApi(BROWSERSTACK_API_PATHS.newSession, {
-            body: { desiredCapabilities: capabilities },
+    this.sessions[id].sessionUrl = await this._requestSessionUrl(id);
 
-            executeImmediately: true
-        });
+    var sessionId = this.sessions[id].sessionId;
 
-        AutomateBackend._ensureSessionId(this.sessions[id]);
+    this.internalSessions[id] = sessionId;
 
-        this.sessions[id].sessionUrl = await this._requestSessionUrl(id);
+    this.sessions[id].interval = setInterval(
+      () =>
+      requestApi(BROWSERSTACK_API_PATHS.getUrl(sessionId), {
+        executeImmediately: true
+      }),
+      API_POLLING_INTERVAL
+    );
 
-        var sessionId = this.sessions[id].sessionId;
+    await requestApi(BROWSERSTACK_API_PATHS.openUrl(sessionId), {
+      body: { url: pageUrl }
+    });
+  }
 
-        this.sessions[id].interval = setInterval(() => requestApi(BROWSERSTACK_API_PATHS.getUrl(sessionId), { executeImmediately: true }), API_POLLING_INTERVAL);
+  async closeBrowser(id) {
+    const session = this.sessions[id];
 
-        await requestApi(BROWSERSTACK_API_PATHS.openUrl(sessionId), { body: { url: pageUrl } });
-    }
+    if (!session) return;
 
-    async closeBrowser (id) {
-        const session = this.sessions[id];
+    clearInterval(session.interval);
 
-        if (!session)
-            return;
+    delete this.sessions[id];
 
-        clearInterval(session.interval);
+    // Delete session whose sessionId is created
+    if (session.sessionId && session.sessionId !== "")
+      await requestApi(
+        BROWSERSTACK_API_PATHS.deleteSession(session.sessionId)
+      );
+  }
 
-        delete this.sessions[id];
+  async takeScreenshot(id, screenshotPath) {
+    return new Promise(async (resolve, reject) => {
+      var base64Data = await requestApi(
+        BROWSERSTACK_API_PATHS.screenshot(this.sessions[id].sessionId)
+      );
+      var buffer = Buffer.from(base64Data.value, "base64");
 
-        // Delete session whose sessionId is created
-        if (session.sessionId && session.sessionId !== '')
-            await requestApi(BROWSERSTACK_API_PATHS.deleteSession(session.sessionId));
-    }
+      jimp.read(buffer)
+        .then(image => image.write(screenshotPath, resolve))
+        .catch(reject);
+    });
+  }
 
+  async resizeWindow(id, width, height, currentWidth, currentHeight) {
+    var sessionId = this.sessions[id].sessionId;
+    var currentWindowSize = await this._requestCurrentWindowSize(id);
+    var currentClientAreaSize = {
+      width: currentWidth,
+      height: currentHeight
+    };
+    var requestedSize = { width, height };
+    var correctedSize = getCorrectedSize(
+      currentClientAreaSize,
+      currentWindowSize,
+      requestedSize
+    );
 
-    async takeScreenshot (id, screenshotPath) {
-        return new Promise(async (resolve, reject) => {
-            var base64Data = await requestApi(BROWSERSTACK_API_PATHS.screenshot(this.sessions[id].sessionId));
-            var buffer     = Buffer.from(base64Data.value, 'base64');
+    await requestApi(BROWSERSTACK_API_PATHS.setWindowSize(sessionId), {
+      body: correctedSize
+    });
+  }
 
-            jimp
-                .read(buffer)
-                .then(image => image.write(screenshotPath, resolve))
-                .catch(reject);
-        });
-    }
+  async maximizeWindow(id) {
+    await requestApi(
+      BROWSERSTACK_API_PATHS.maximizeWindow(this.sessions[id].sessionId)
+    );
+  }
 
-    async resizeWindow (id, width, height, currentWidth, currentHeight) {
-        var sessionId             = this.sessions[id].sessionId;
-        var currentWindowSize     = await this._requestCurrentWindowSize(id);
-        var currentClientAreaSize = { width: currentWidth, height: currentHeight };
-        var requestedSize         = { width, height };
-        var correctedSize         = getCorrectedSize(currentClientAreaSize, currentWindowSize, requestedSize);
+  async reportJobResult(id, jobResult, jobData, possibleResults) {
+    var sessionId = this.sessions[id].sessionId;
+    var jobStatus = createBrowserstackStatus(
+      jobResult,
+      jobData,
+      possibleResults
+    );
 
-        await requestApi(BROWSERSTACK_API_PATHS.setWindowSize(sessionId), { body: correctedSize });
-    }
-
-    async maximizeWindow (id) {
-        await requestApi(BROWSERSTACK_API_PATHS.maximizeWindow(this.sessions[id].sessionId));
-    }
-
-    async reportJobResult (id, jobResult, jobData, possibleResults) {
-        var sessionId = this.sessions[id].sessionId;
-        var jobStatus = createBrowserstackStatus(jobResult, jobData, possibleResults);
-
-        await requestApiBase(BROWSERSTACK_API_PATHS.setStatus(sessionId), { body: jobStatus });
-    }
+    await requestApiBase(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
+      body: jobStatus
+    });
+  }
 }
