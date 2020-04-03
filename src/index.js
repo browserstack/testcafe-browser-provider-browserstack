@@ -251,14 +251,12 @@ export default {
     },
 
     async sendLog (id, data) {
-        // eslint-disable-next-line no-console
-        // console.log(this.backend.sessionId(id), id, data);
-
         try {
             await this.backend.markLog(id, data);
         }
         catch (err) {
-            process.emitWarning(err);
+            // This can be controlled through some parameter
+            // process.emitWarning(err);
         }
     },
 

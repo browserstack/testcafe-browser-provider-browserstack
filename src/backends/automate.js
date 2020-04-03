@@ -117,11 +117,14 @@ export default class AutomateBackend extends BaseBackend {
     const sessionId = this.fetchSessionID(id);
 
     try {
-      await requestApi(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
-        body: {
-          name,
-        }
-      });
+      // Check placed here to avoid sessionNotStarted or terminated error
+      if (this.sessions[id]) {
+        await requestApi(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
+          body: {
+            name,
+          }
+        });
+      }
     } catch (err) {
       // Can be enabled through flag to see the errors while
       // this functionality.
@@ -136,11 +139,14 @@ export default class AutomateBackend extends BaseBackend {
     payload.action = "annotate";
     payload.currentTime = Date.now();
 
-    await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
-      body: {
-        script: `browserstack_executor: ${JSON.stringify(payload)}`
-      }
-    });
+    // Check for the session not started error as may be they have closed the session
+    if (this.sessions[id]) {
+      await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
+        body: {
+          script: `browserstack_executor: ${JSON.stringify(payload)}`
+        }
+      });
+    }
   }
 
   static _ensureSessionId(sessionInfo) {
