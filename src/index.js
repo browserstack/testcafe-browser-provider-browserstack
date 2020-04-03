@@ -359,7 +359,7 @@ export default {
     async init () {
         var reportWarning = (...args) => this.reportWarning(...args);
 
-        this.backend = isAutomateEnabled() ? new AutomateBackend(reportWarning) : new JSTestingBackend(reportWarning);
+        this.backend = new AutomateBackend(reportWarning);
 
         await this._getDeviceList();
 
