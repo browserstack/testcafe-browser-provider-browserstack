@@ -146,9 +146,12 @@ export default {
     },
 
     _getAdditionalCapabilities () {
-        const capabilitiesFromEnvironment = filter(this._getCapabilitiesFromEnvironment(), value => value !== void 0);
-
-        return { ...this._getCapabilitiesFromConfig(), ...capabilitiesFromEnvironment };
+        const environmentCapabilities = this._getCapabilitiesFromEnvironment();
+        const filterUndefinedKeys = Object
+                                        .keys(environmentCapabilities)
+                                        .filter(k => environmentCapabilities[k] !== undefined)
+                                        .reduce((res, key) => (res[key] = environmentCapabilities[key], res), {});
+        return { ...this._getCapabilitiesFromConfig(), ...filterUndefinedKeys };
     },
 
     _filterPlatformInfo (query) {
