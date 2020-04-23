@@ -16,45 +16,45 @@ const BROWSERSTACK_API_PATHS = {
   },
 
   newSession: {
-    url: "http://hub-cloud.browserstack.com/wd/hub/session",
+    url: "https://hub-cloud.browserstack.com/wd/hub/session",
     method: "POST"
   },
 
   openUrl: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/url`,
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/url`,
     method: "POST"
   }),
 
   getWindowSize: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`
   }),
 
   setWindowSize: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`,
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`,
     method: "POST"
   }),
 
   maximizeWindow: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/maximize`,
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/maximize`,
     method: "POST"
   }),
 
   getUrl: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/url`
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/url`
   }),
 
   executeScript: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/execute`,
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/execute`,
     method: "POST"
   }),
 
   deleteSession: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}`,
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}`,
     method: "DELETE"
   }),
 
   screenshot: id => ({
-    url: `http://hub-cloud.browserstack.com/wd/hub/session/${id}/screenshot`
+    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/screenshot`
   }),
 
   getStatus: id => ({
