@@ -4,6 +4,7 @@ import {
     AssertHandler,
     SelectorHandler,
     NavigateURLHandler,
+    PressHandler,
 } from './handlers';
 
 const decideHandler = (type, data) => {
@@ -16,12 +17,15 @@ const decideHandler = (type, data) => {
             return new SelectorHandler(data);
         case 'navigate-to':
             return new NavigateURLHandler(data);
+        case 'press':
+            return new PressHandler(data);
         default:
             return new DefaultHandler(data);
     }
 };
 
 const parsePayload = data => {
+    console.log(data);
     const { type = 'cmd' } = data;
 
     const handler = decideHandler(type, data);

@@ -141,11 +141,15 @@ export default class AutomateBackend extends BaseBackend {
 
     // Check for the session not started error as may be they have closed the session
     if (this.sessions[id]) {
-      await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
-        body: {
-          script: `browserstack_executor: ${JSON.stringify(payload)}`
+        try {
+            await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
+                body: {
+                    script: `browserstack_executor: ${JSON.stringify(payload)}`
+                }
+            });
+        } catch(err) {
+            // Error while setting up the command log
         }
-      });
     }
   }
 
