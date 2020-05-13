@@ -25,7 +25,6 @@ const decideHandler = (type, data) => {
 };
 
 const parsePayload = data => {
-    console.log(data);
     const { type = 'cmd' } = data;
 
     const handler = decideHandler(type, data);
