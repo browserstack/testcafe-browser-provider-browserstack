@@ -31,6 +31,8 @@ const parsePayload = data => {
     const { type = 'cmd' } = data;
 
     const handler = decideHandler(type, data);
+    if (handler instanceof DefaultHandler)
+        return null;
     const logData = handler.handleLog();
 
     return { arguments: logData };

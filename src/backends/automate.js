@@ -136,6 +136,8 @@ export default class AutomateBackend extends BaseBackend {
     const sessionId = this.fetchSessionID(id);
 
     const payload = parsePayload(data);
+    if (payload === null)
+      return;
     payload.action = "annotate";
     payload.currentTime = Date.now();
 
