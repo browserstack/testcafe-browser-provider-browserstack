@@ -5,6 +5,7 @@ import {
     SelectorHandler,
     NavigateURLHandler,
     PressHandler,
+    ClickHandler,
 } from './handlers';
 
 const decideHandler = (type, data) => {
@@ -19,6 +20,8 @@ const decideHandler = (type, data) => {
             return new NavigateURLHandler(data);
         case 'press-key':
             return new PressHandler(data);
+        case 'click':
+            return new ClickHandler(data);
         default:
             return new DefaultHandler(data);
     }
