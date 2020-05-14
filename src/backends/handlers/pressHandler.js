@@ -2,7 +2,7 @@ import BaseLogHandler from './baseTemplate';
 
 class PressHandler extends BaseLogHandler {
     constructor (data) {
-        super('PRESS_KEY', data);
+        super('KEY_PRESS', data);
     }
 
     handleLog () {
