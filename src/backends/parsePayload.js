@@ -17,7 +17,7 @@ const decideHandler = (type, data) => {
             return new SelectorHandler(data);
         case 'navigate-to':
             return new NavigateURLHandler(data);
-        case 'press':
+        case 'press-key':
             return new PressHandler(data);
         default:
             return new DefaultHandler(data);
