@@ -8,7 +8,7 @@ class AssertHandler extends BaseLogHandler {
     handleLog () {
         const { expected = '' } = this.data;
 
-        return { type: this.type, data: expected };
+        return { type: this.type, data: expected.toString() };
     }
 }
 

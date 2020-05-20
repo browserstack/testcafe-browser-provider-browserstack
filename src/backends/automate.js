@@ -136,16 +136,23 @@ export default class AutomateBackend extends BaseBackend {
     const sessionId = this.fetchSessionID(id);
 
     const payload = parsePayload(data);
+    if (payload === null)
+      return;
     payload.action = "annotate";
     payload.currentTime = Date.now();
 
     // Check for the session not started error as may be they have closed the session
     if (this.sessions[id]) {
-      await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
-        body: {
-          script: `browserstack_executor: ${JSON.stringify(payload)}`
+        try {
+            await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
+                body: {
+                    script: `browserstack_executor: ${JSON.stringify(payload)}`
+                }
+            });
+        } catch(err) {
+            // Error while setting up the command log
+            console.log(`Error while setting command: ${inspect(err, {depth: 1})}`);
         }
-      });
     }
   }
 
