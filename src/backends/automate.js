@@ -151,6 +151,7 @@ export default class AutomateBackend extends BaseBackend {
             });
         } catch(err) {
             // Error while setting up the command log
+            console.log(`Error while setting command: ${inspect(err, {depth: 1})}`);
         }
     }
   }
