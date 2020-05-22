@@ -7,62 +7,63 @@ import createBrowserstackStatus from "../utils/create-browserstack-status";
 import getAPIPollingInterval from "../utils/get-api-polling-interval";
 import * as ERROR_MESSAGES from "../templates/error-messages";
 import parsePayload from "./parsePayload";
+import ROUTE_CONFIG from './routeConfig';
 
 const API_POLLING_INTERVAL = getAPIPollingInterval();
 
 const BROWSERSTACK_API_PATHS = {
   browserList: {
-    url: "https://api.browserstack.com/automate/browsers.json"
+    url: `${ROUTE_CONFIG.browserStack.host}/automate/browsers.json`
   },
 
   newSession: {
-    url: "https://hub-cloud.browserstack.com/wd/hub/session",
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session`,
     method: "POST"
   },
 
   openUrl: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/url`,
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/url`,
     method: "POST"
   }),
 
   getWindowSize: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/size`
   }),
 
   setWindowSize: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/size`,
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/size`,
     method: "POST"
   }),
 
   maximizeWindow: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/window/current/maximize`,
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/maximize`,
     method: "POST"
   }),
 
   getUrl: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/url`
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/url`
   }),
 
   executeScript: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/execute`,
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/execute`,
     method: "POST"
   }),
 
   deleteSession: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}`,
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}`,
     method: "DELETE"
   }),
 
   screenshot: id => ({
-    url: `https://hub-cloud.browserstack.com/wd/hub/session/${id}/screenshot`
+    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/screenshot`
   }),
 
   getStatus: id => ({
-    url: `https://api.browserstack.com/automate/sessions/${id}.json`
+    url: `${ROUTE_CONFIG.browserStack.host}/automate/sessions/${id}.json`
   }),
 
   setStatus: id => ({
-    url: `https://api.browserstack.com/automate/sessions/${id}.json`,
+    url: `${ROUTE_CONFIG.browserStack.host}/automate/sessions/${id}.json`,
     method: "PUT"
   })
 };
