@@ -7,309 +7,317 @@ import createBrowserstackStatus from "../utils/create-browserstack-status";
 import getAPIPollingInterval from "../utils/get-api-polling-interval";
 import * as ERROR_MESSAGES from "../templates/error-messages";
 import parsePayload from "./parsePayload";
-import ROUTE_CONFIG from './routeConfig';
+import ROUTE_CONFIG from "./routeConfig";
 
 const API_POLLING_INTERVAL = getAPIPollingInterval();
+const MINIMUM_TIME_THRESHOLD = 1000;
 
 const BROWSERSTACK_API_PATHS = {
-  browserList: {
-    url: `${ROUTE_CONFIG.browserStack.host}/automate/browsers.json`
-  },
+    browserList: {
+        url: `${ROUTE_CONFIG.browserStack.host}/automate/browsers.json`
+    },
 
-  newSession: {
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session`,
-    method: "POST"
-  },
+    newSession: {
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session`,
+        method: "POST"
+    },
 
-  openUrl: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/url`,
-    method: "POST"
-  }),
+    openUrl: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/url`,
+        method: "POST"
+    }),
 
-  getWindowSize: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/size`
-  }),
+    getWindowSize: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/size`
+    }),
 
-  setWindowSize: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/size`,
-    method: "POST"
-  }),
+    setWindowSize: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/size`,
+        method: "POST"
+    }),
 
-  maximizeWindow: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/maximize`,
-    method: "POST"
-  }),
+    maximizeWindow: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/window/current/maximize`,
+        method: "POST"
+    }),
 
-  getUrl: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/url`
-  }),
+    getUrl: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/url`
+    }),
 
-  executeScript: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/execute`,
-    method: "POST"
-  }),
+    executeScript: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/execute`,
+        method: "POST"
+    }),
 
-  deleteSession: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}`,
-    method: "DELETE"
-  }),
+    deleteSession: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}`,
+        method: "DELETE"
+    }),
 
-  screenshot: id => ({
-    url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/screenshot`
-  }),
+    screenshot: id => ({
+        url: `${ROUTE_CONFIG.selenium.host}/wd/hub/session/${id}/screenshot`
+    }),
 
-  getStatus: id => ({
-    url: `${ROUTE_CONFIG.browserStack.host}/automate/sessions/${id}.json`
-  }),
+    getStatus: id => ({
+        url: `${ROUTE_CONFIG.browserStack.host}/automate/sessions/${id}.json`
+    }),
 
-  setStatus: id => ({
-    url: `${ROUTE_CONFIG.browserStack.host}/automate/sessions/${id}.json`,
-    method: "PUT"
-  })
+    setStatus: id => ({
+        url: `${ROUTE_CONFIG.browserStack.host}/automate/sessions/${id}.json`,
+        method: "PUT"
+    })
 };
 
 function requestApi(path, params) {
-  return requestApiBase(path, params).then(response => {
-    if (response.status) {
-      throw new Error(
-        ERROR_MESSAGES.REMOTE_API_REQUEST_FAILED({
-          status: response.status,
-          apiResponse:
-          (response.value && response.value.message) ||
-          inspect(response)
-        })
-      );
-    }
+    return requestApiBase(path, params).then(response => {
+        if (response.status) {
+            throw new Error(
+                ERROR_MESSAGES.REMOTE_API_REQUEST_FAILED({
+                    status: response.status,
+                    apiResponse:
+                        (response.value && response.value.message) ||
+                        inspect(response)
+                })
+            );
+        }
 
-    return response;
-  });
+        return response;
+    });
 }
 
 function getCorrectedSize(
-  currentClientAreaSize,
-  currentWindowSize,
-  requestedSize
+    currentClientAreaSize,
+    currentWindowSize,
+    requestedSize
 ) {
-  var horizontalChrome =
-    currentWindowSize.width - currentClientAreaSize.width;
-  var verticalChrome =
-    currentWindowSize.height - currentClientAreaSize.height;
+    var horizontalChrome =
+        currentWindowSize.width - currentClientAreaSize.width;
+    var verticalChrome =
+        currentWindowSize.height - currentClientAreaSize.height;
 
-  return {
-    width: requestedSize.width + horizontalChrome,
-    height: requestedSize.height + verticalChrome
-  };
+    return {
+        width: requestedSize.width + horizontalChrome,
+        height: requestedSize.height + verticalChrome
+    };
 }
 
 export default class AutomateBackend extends BaseBackend {
-  constructor(...args) {
-    super(...args);
+    constructor(...args) {
+        super(...args);
 
-    this.sessions = {};
+        this.sessions = {};
 
-    this.internalSessions = {};
-  }
-
-  fetchSessionID(id) {
-    return this.internalSessions[id];
-  }
-
-  async adjustName(name, id) {
-    const sessionId = this.fetchSessionID(id);
-
-    try {
-      // Check placed here to avoid sessionNotStarted or terminated error
-      if (this.sessions[id]) {
-        await requestApi(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
-          body: {
-            name,
-          }
-        });
-      }
-    } catch (err) {
-      // Can be enabled through flag to see the errors while
-      // this functionality.
-      // console.log(err);
+        this.internalSessions = {};
+        this.eventsTracked = {};
     }
-  }
 
-  async markLog(id, data) {
-    const sessionId = this.fetchSessionID(id);
+    fetchSessionID(id) {
+        return this.internalSessions[id];
+    }
 
-    const payload = parsePayload(data);
-    if (payload === null)
-      return;
-    payload.action = "annotate";
-    payload.currentTime = Date.now();
+    async adjustName(name, id) {
+        const sessionId = this.fetchSessionID(id);
 
-    // Check for the session not started error as may be they have closed the session
-    if (this.sessions[id]) {
         try {
-            await requestApi(BROWSERSTACK_API_PATHS.executeScript(sessionId), {
-                body: {
-                    script: `browserstack_executor: ${JSON.stringify(payload)}`
-                }
-            });
-        } catch(err) {
-            // Error while setting up the command log
-            console.log(`Error while setting command: ${inspect(err, {depth: 1})}`);
+            // Check placed here to avoid sessionNotStarted or terminated error
+            if (this.sessions[id]) {
+                await requestApi(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
+                    body: {
+                        name
+                    }
+                });
+            }
+        } catch (err) {
+            // Can be enabled through flag to see the errors while
+            // this functionality.
+            // console.log(err);
         }
     }
-  }
 
-  static _ensureSessionId(sessionInfo) {
-    const sessionData = sessionInfo.value || {};
-    const sessionCapabilities = sessionData.capabilities || {};
+    async markLog(id, data) {
+        const sessionId = this.fetchSessionID(id);
 
-    sessionInfo.sessionId =
-      sessionInfo.sessionId ||
-      sessionData.sessionId ||
-      sessionData["webdriver.remote.sessionid"] ||
-      sessionCapabilities["webdriver.remote.sessionid"];
+        const payload = parsePayload(data);
+        if (payload === null) return;
+        payload.action = "annotate";
+        payload.currentTime = Date.now();
 
-    if (!sessionInfo.sessionId) {
-      throw new Error(
-        ERROR_MESSAGES.SESSION_ID_NOT_FOUND({
-          sessionInfoDump: inspect(sessionInfo)
-        })
-      );
+        // Check for the session not started error as may be they have closed the session
+        if (this.sessions[id]) {
+            try {
+                await requestApi(
+                    BROWSERSTACK_API_PATHS.executeScript(sessionId),
+                    {
+                        body: {
+                            script: `browserstack_executor: ${JSON.stringify(
+                                payload
+                            )}`
+                        }
+                    }
+                );
+            } catch (err) {
+                // Error while setting up the command log
+                console.log(
+                    `Error while setting command: ${inspect(err, { depth: 1 })}`
+                );
+            }
+        }
     }
-  }
 
-  async _requestSessionUrl(id) {
-    var sessionInfo = await requestApiBase(
-      BROWSERSTACK_API_PATHS.getStatus(this.sessions[id].sessionId)
-    );
+    static _ensureSessionId(sessionInfo) {
+        const sessionData = sessionInfo.value || {};
+        const sessionCapabilities = sessionData.capabilities || {};
 
-    return sessionInfo["automation_session"]["browser_url"];
-  }
+        sessionInfo.sessionId =
+            sessionInfo.sessionId ||
+            sessionData.sessionId ||
+            sessionData["webdriver.remote.sessionid"] ||
+            sessionCapabilities["webdriver.remote.sessionid"];
 
-  async _requestCurrentWindowSize(id) {
-    var currentWindowSizeData = await requestApi(
-      BROWSERSTACK_API_PATHS.getWindowSize(this.sessions[id].sessionId)
-    );
+        if (!sessionInfo.sessionId) {
+            throw new Error(
+                ERROR_MESSAGES.SESSION_ID_NOT_FOUND({
+                    sessionInfoDump: inspect(sessionInfo)
+                })
+            );
+        }
+    }
 
-    return {
-      width: currentWindowSizeData.value.width,
-      height: currentWindowSizeData.value.height
-    };
-  }
+    async _requestSessionUrl(id) {
+        var sessionInfo = await requestApiBase(
+            BROWSERSTACK_API_PATHS.getStatus(this.sessions[id].sessionId)
+        );
 
-  async getBrowsersList() {
-    var platformsInfo = await requestApiBase(
-      BROWSERSTACK_API_PATHS.browserList
-    );
+        return sessionInfo["automation_session"]["browser_url"];
+    }
 
-    return platformsInfo.reverse();
-  }
+    async _requestCurrentWindowSize(id) {
+        var currentWindowSizeData = await requestApi(
+            BROWSERSTACK_API_PATHS.getWindowSize(this.sessions[id].sessionId)
+        );
 
-  getSessionUrl(id) {
-    return this.sessions[id] ? this.sessions[id].sessionUrl : "";
-  }
+        return {
+            width: currentWindowSizeData.value.width,
+            height: currentWindowSizeData.value.height
+        };
+    }
 
-  async openBrowser(id, pageUrl, capabilities) {
-    var { localIdentifier, local, ...restCapabilities } = capabilities;
+    async getBrowsersList() {
+        var platformsInfo = await requestApiBase(
+            BROWSERSTACK_API_PATHS.browserList
+        );
 
-    capabilities = {
-      "browserstack.localIdentifier": localIdentifier,
-      "browserstack.local": local,
-      ...restCapabilities
-    };
+        return platformsInfo.reverse();
+    }
 
-    this.sessions[id] = await requestApi(
-      BROWSERSTACK_API_PATHS.newSession,
-      {
-        body: { desiredCapabilities: capabilities },
+    getSessionUrl(id) {
+        return this.sessions[id] ? this.sessions[id].sessionUrl : "";
+    }
 
-        executeImmediately: true
-      }
-    );
+    async openBrowser(id, pageUrl, capabilities) {
+        var { localIdentifier, local, ...restCapabilities } = capabilities;
 
-    AutomateBackend._ensureSessionId(this.sessions[id]);
+        capabilities = {
+            "browserstack.localIdentifier": localIdentifier,
+            "browserstack.local": local,
+            ...restCapabilities
+        };
 
-    this.sessions[id].sessionUrl = await this._requestSessionUrl(id);
+        this.sessions[id] = await requestApi(
+            BROWSERSTACK_API_PATHS.newSession,
+            {
+                body: { desiredCapabilities: capabilities },
 
-    var sessionId = this.sessions[id].sessionId;
+                executeImmediately: true
+            }
+        );
 
-    this.internalSessions[id] = sessionId;
+        AutomateBackend._ensureSessionId(this.sessions[id]);
 
-    this.sessions[id].interval = setInterval(
-      () =>
-      requestApi(BROWSERSTACK_API_PATHS.getUrl(sessionId), {
-        executeImmediately: true
-      }),
-      API_POLLING_INTERVAL
-    );
+        this.sessions[id].sessionUrl = await this._requestSessionUrl(id);
 
-    await requestApi(BROWSERSTACK_API_PATHS.openUrl(sessionId), {
-      body: { url: pageUrl }
-    });
-  }
+        var sessionId = this.sessions[id].sessionId;
 
-  async closeBrowser(id) {
-    const session = this.sessions[id];
+        this.internalSessions[id] = sessionId;
 
-    if (!session) return;
+        this.sessions[id].interval = setInterval(
+            () =>
+                requestApi(BROWSERSTACK_API_PATHS.getUrl(sessionId), {
+                    executeImmediately: true
+                }),
+            API_POLLING_INTERVAL
+        );
 
-    clearInterval(session.interval);
+        await requestApi(BROWSERSTACK_API_PATHS.openUrl(sessionId), {
+            body: { url: pageUrl }
+        });
+    }
 
-    delete this.sessions[id];
+    async closeBrowser(id) {
+        const session = this.sessions[id];
 
-    // Delete session whose sessionId is created
-    if (session.sessionId && session.sessionId !== "")
-      await requestApi(
-        BROWSERSTACK_API_PATHS.deleteSession(session.sessionId)
-      );
-  }
+        if (!session) return;
 
-  async takeScreenshot(id, screenshotPath) {
-    return new Promise(async (resolve, reject) => {
-      var base64Data = await requestApi(
-        BROWSERSTACK_API_PATHS.screenshot(this.sessions[id].sessionId)
-      );
-      var buffer = Buffer.from(base64Data.value, "base64");
+        clearInterval(session.interval);
 
-      jimp.read(buffer)
-        .then(image => image.write(screenshotPath, resolve))
-        .catch(reject);
-    });
-  }
+        delete this.sessions[id];
 
-  async resizeWindow(id, width, height, currentWidth, currentHeight) {
-    var sessionId = this.sessions[id].sessionId;
-    var currentWindowSize = await this._requestCurrentWindowSize(id);
-    var currentClientAreaSize = {
-      width: currentWidth,
-      height: currentHeight
-    };
-    var requestedSize = { width, height };
-    var correctedSize = getCorrectedSize(
-      currentClientAreaSize,
-      currentWindowSize,
-      requestedSize
-    );
+        // Delete session whose sessionId is created
+        if (session.sessionId && session.sessionId !== "")
+            await requestApi(
+                BROWSERSTACK_API_PATHS.deleteSession(session.sessionId)
+            );
+    }
 
-    await requestApi(BROWSERSTACK_API_PATHS.setWindowSize(sessionId), {
-      body: correctedSize
-    });
-  }
+    async takeScreenshot(id, screenshotPath) {
+        return new Promise(async (resolve, reject) => {
+            var base64Data = await requestApi(
+                BROWSERSTACK_API_PATHS.screenshot(this.sessions[id].sessionId)
+            );
+            var buffer = Buffer.from(base64Data.value, "base64");
 
-  async maximizeWindow(id) {
-    await requestApi(
-      BROWSERSTACK_API_PATHS.maximizeWindow(this.sessions[id].sessionId)
-    );
-  }
+            jimp.read(buffer)
+                .then(image => image.write(screenshotPath, resolve))
+                .catch(reject);
+        });
+    }
 
-  async reportJobResult(id, jobResult, jobData, possibleResults) {
-    var sessionId = this.sessions[id].sessionId;
-    var jobStatus = createBrowserstackStatus(
-      jobResult,
-      jobData,
-      possibleResults
-    );
+    async resizeWindow(id, width, height, currentWidth, currentHeight) {
+        var sessionId = this.sessions[id].sessionId;
+        var currentWindowSize = await this._requestCurrentWindowSize(id);
+        var currentClientAreaSize = {
+            width: currentWidth,
+            height: currentHeight
+        };
+        var requestedSize = { width, height };
+        var correctedSize = getCorrectedSize(
+            currentClientAreaSize,
+            currentWindowSize,
+            requestedSize
+        );
 
-    await requestApiBase(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
-      body: jobStatus
-    });
-  }
+        await requestApi(BROWSERSTACK_API_PATHS.setWindowSize(sessionId), {
+            body: correctedSize
+        });
+    }
+
+    async maximizeWindow(id) {
+        await requestApi(
+            BROWSERSTACK_API_PATHS.maximizeWindow(this.sessions[id].sessionId)
+        );
+    }
+
+    async reportJobResult(id, jobResult, jobData, possibleResults) {
+        var sessionId = this.sessions[id].sessionId;
+        var jobStatus = createBrowserstackStatus(
+            jobResult,
+            jobData,
+            possibleResults
+        );
+
+        await requestApiBase(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
+            body: jobStatus
+        });
+    }
 }
