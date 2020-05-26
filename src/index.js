@@ -283,6 +283,8 @@ export default {
     },
 
     async sendLog(id, data) {
+        if (id === undefined)
+            return;
         try {
             await this.backend.markLog(id, data);
         } catch (err) {
@@ -333,20 +335,6 @@ export default {
     // Browser control
     async openBrowser(id, pageUrl, browserName) {
         // Very nasty hack to get commands
-        const some = module.parent.parent.parent;
-        const debugNode = this.getNode(some);
-
-        if (debugNode !== null) {
-            const original = debugNode.exports._addEntry;
-
-            debugNode.exports._addEntry = async (logger, data) => {
-                // You can change it to any use-case
-                // eslint-disable-next-line no-console
-                // console.log('@annoted log', data.type || data.cmd);
-                await this.sendLog(id, data);
-                original(logger, data);
-            };
-        }
 
         const capabilities = {
             ...this._generateBasicCapabilities(browserName),
@@ -402,6 +390,21 @@ export default {
     // Initialization
     async init() {
         var reportWarning = (...args) => this.reportWarning(...args);
+
+        const some = module.parent.parent.parent;
+        const debugNode = this.getNode(some);
+
+        if (debugNode !== null) {
+            const original = debugNode.exports._addEntry;
+
+            debugNode.exports._addEntry = async (logger, data, options = {}) => {
+                // You can change it to any use-case
+                // eslint-disable-next-line no-console
+                // console.log('@annoted log', data.type || data.cmd);
+                await this.sendLog(options.id, data);
+                original(logger, data, options);
+            };
+        }
 
         this.backend = new AutomateBackend(reportWarning);
 
