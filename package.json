@@ -1,26 +1,20 @@
 {
-  "name": "testcafe-browser-provider-browserstack",
-  "version": "1.13.0-alpha.1",
+  "name": "@browserstack/testcafe-browser-provider-browserstack",
+  "version": "1.13.1",
   "description": "browserstack TestCafe browser provider plugin.",
-  "repository": "https://github.com/DevExpress/testcafe-browser-provider-browserstack",
+  "repository": "https://github.com/browserstack/testcafe-browser-provider-browserstack",
   "engines": {
     "node": ">=8.0.0"
   },
-  "homepage": "https://github.com/DevExpress/testcafe-browser-provider-browserstack",
-  "author": {
-    "name": "Andrey Belym",
-    "email": "belym.a.2105@gmail.com",
-    "url": "https://github.com/DevExpress/testcafe-browser-provider-browserstack"
-  },
+  "homepage": "https://github.com/browserstack/testcafe-browser-provider-browserstack",
+  "author": "BrowserStack",
   "main": "lib/index",
   "files": [
     "lib"
   ],
   "scripts": {
     "test": "gulp test",
-    "prepare": "gulp build",
-    "publish-please": "publish-please",
-    "prepublish": "publish-please guard"
+    "prepare": "gulp build"
   },
   "keywords": [
     "testcafe",
