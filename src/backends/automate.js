@@ -10,7 +10,6 @@ import parsePayload from "./parsePayload";
 import ROUTE_CONFIG from "./routeConfig";
 
 const API_POLLING_INTERVAL = getAPIPollingInterval();
-const MINIMUM_TIME_THRESHOLD = 1000;
 
 const BROWSERSTACK_API_PATHS = {
     browserList: {
@@ -127,8 +126,7 @@ export default class AutomateBackend extends BaseBackend {
                     }
                 });
             }
-        } catch (err) {
-        }
+        } catch (err) {}
     }
 
     async markLog(id, data) {
@@ -140,7 +138,7 @@ export default class AutomateBackend extends BaseBackend {
         payload.currentTime = Date.now();
 
         // Check for the session not started error as may be they have closed the session
-        if (this.sessions[id]) {
+        if (this.isDeleted[sessionId] !== true) {
             try {
                 await requestApi(
                     BROWSERSTACK_API_PATHS.executeScript(sessionId),
@@ -154,9 +152,7 @@ export default class AutomateBackend extends BaseBackend {
                 );
             } catch (err) {
                 // Error while setting up the command log
-                console.log(
-                    `Error while setting command: ${inspect(err, { depth: 1 })}`
-                );
+                console.log(`Error while setting command`);
             }
         }
     }
@@ -255,20 +251,20 @@ export default class AutomateBackend extends BaseBackend {
 
         if (!session) return;
 
-        const { sessionId = '' } = session;
+        const { sessionId = "" } = session;
 
-        if (sessionId !== '')
-            this.isDeleted[sessionId] = true;
+        if (sessionId !== "") this.isDeleted[sessionId] = true;
 
         clearInterval(session.interval);
 
         delete this.sessions[id];
 
         // Delete session whose sessionId is created
-        if (sessionId !== '')
+        if (sessionId !== "") {
             await requestApi(
                 BROWSERSTACK_API_PATHS.deleteSession(session.sessionId)
             );
+        }
     }
 
     async takeScreenshot(id, screenshotPath) {

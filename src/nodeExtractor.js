@@ -20,36 +20,35 @@ function getNode(root) {
             ) {
                 const childNode = elem.children[childIdx];
 
-                if (childNode.exports) {
-                    if (childNode.exports._getTestRunCtor) {
-                        const origFn = childNode.exports._getTestRunCtor;
+                if (childNode.exports === undefined) continue;
 
-                        const proxyArgsToExecutor = async args => {
-                            await this.sendArgsToBackend(args);
-                        };
+                if (childNode.exports._getTestRunCtor) {
+                    const origFn = childNode.exports._getTestRunCtor;
 
-                        childNode.exports._getTestRunCtor = function(a, b) {
-                            const value = origFn(a, b);
-                            class psuedoTestRun {
-                                constructor(...args) {
-                                    this.adjust(args);
-                                    return new value(...args);
-                                }
+                    const proxyArgsToExecutor = async args => {
+                        await this.sendArgsToBackend(args);
+                    };
+
+                    childNode.exports._getTestRunCtor = function(a, b) {
+                        const value = origFn(a, b);
+                        class psuedoTestRun {
+                            constructor(...args) {
+                                this.adjust(args);
+                                return new value(...args);
                             }
+                        }
 
-                            psuedoTestRun.prototype.adjust = proxyArgsToExecutor;
+                        psuedoTestRun.prototype.adjust = proxyArgsToExecutor;
 
-                            Object.keys(value.prototype).forEach(key => {
-                                psuedoTestRun.prototype[key] =
-                                    value.prototype[key];
-                            });
+                        Object.keys(value.prototype).forEach(key => {
+                            psuedoTestRun.prototype[key] = value.prototype[key];
+                        });
 
-                            return psuedoTestRun;
-                        };
-                    }
-
-                    if (childNode.exports._addEntry) return childNode;
+                        return psuedoTestRun;
+                    };
                 }
+
+                if (childNode.exports._addEntry) return childNode;
 
                 queue.push(elem.children[childIdx]);
             }
@@ -58,6 +57,6 @@ function getNode(root) {
         --MAX_DEPTH_LEVEL;
     }
     return null;
-};
+}
 
 export default getNode;
