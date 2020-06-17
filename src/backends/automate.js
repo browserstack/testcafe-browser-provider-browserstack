@@ -119,7 +119,8 @@ export default class AutomateBackend extends BaseBackend {
         const sessionId = this.fetchSessionID(id);
 
         try {
-            if (this.isDeleted[sessionId] !== true) {
+            if (sessionId &&
+                this.isDeleted[sessionId] !== true) {
                 await requestApi(BROWSERSTACK_API_PATHS.setStatus(sessionId), {
                     body: {
                         name
@@ -138,7 +139,8 @@ export default class AutomateBackend extends BaseBackend {
         payload.currentTime = Date.now();
 
         // Check for the session not started error as may be they have closed the session
-        if (this.isDeleted[sessionId] !== true) {
+        if (sessionId &&
+            this.isDeleted[sessionId] !== true) {
             try {
                 await requestApi(
                     BROWSERSTACK_API_PATHS.executeScript(sessionId),
@@ -204,7 +206,7 @@ export default class AutomateBackend extends BaseBackend {
     }
 
     getSessionUrl(id) {
-        return this.sessions[id] ? this.sessions[id].sessionUrl : "";
+        return id && this.sessions[id] ? this.sessions[id].sessionUrl : "";
     }
 
     async openBrowser(id, pageUrl, capabilities) {
@@ -251,16 +253,18 @@ export default class AutomateBackend extends BaseBackend {
 
         if (!session) return;
 
-        const { sessionId = "" } = session;
+        const { sessionId } = session;
 
-        if (sessionId !== "") this.isDeleted[sessionId] = true;
+        if (sessionId && sessionId !== '') {
+            this.isDeleted[sessionId] = true;
+        }
 
         clearInterval(session.interval);
 
         delete this.sessions[id];
 
         // Delete session whose sessionId is created
-        if (sessionId !== "") {
+        if (sessionId !== '' && sessionId) {
             await requestApi(
                 BROWSERSTACK_API_PATHS.deleteSession(session.sessionId)
             );
